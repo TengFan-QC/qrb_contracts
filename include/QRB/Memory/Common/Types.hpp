@@ -175,6 +175,52 @@ typedef struct BoundingBox3d
     Vector3d_t size;
 } BoundingBox3d_t;
 
+/**
+ * @struct Point2d_t
+ * @brief 2-D point in pixel coordinates, matching ROS 2 vision_msgs/Point2D.
+ *
+ * Follows the sensor_msgs/Image convention: X is positive right, Y is positive down.
+ *
+ * @param x  X coordinate in pixels.
+ * @param y  Y coordinate in pixels.
+ */
+typedef struct Point2d
+{
+    double x{ 0.0 };
+    double y{ 0.0 };
+} Point2d_t;
+
+/**
+ * @struct Pose2d_t
+ * @brief 2-D pose (position + rotation), matching ROS 2 vision_msgs/Pose2D.
+ *
+ * @param position  Position in pixels.
+ * @param theta     Rotation in radians, positive counterclockwise.
+ */
+typedef struct Pose2d
+{
+    Point2d_t position;
+    double    theta{ 0.0 };
+} Pose2d_t;
+
+/**
+ * @struct BoundingBox2d_t
+ * @brief A 2-D bounding box that can be rotated about its center,
+ *        matching ROS 2 vision_msgs/BoundingBox2D.
+ *
+ * All dimensions are in pixels, held in floating point to allow sub-pixel precision.
+ *
+ * @param center  Position and orientation of the bounding box center.
+ * @param sizeX   Total size of the box along its X axis (pixels), relative to the center pose.
+ * @param sizeY   Total size of the box along its Y axis (pixels), relative to the center pose.
+ */
+typedef struct BoundingBox2d
+{
+    Pose2d_t center;
+    double   sizeX{ 0.0 };
+    double   sizeY{ 0.0 };
+} BoundingBox2d_t;
+
 /** @} */  // end of RoboticsGeometry
 
 }   // namespace Memory

@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <type_traits>
 #include <utility>
 
 namespace QRB
@@ -41,6 +42,9 @@ namespace Memory
  * @brief POD representation of a single class hypothesis stored in the DMA buffer,
  *        matching ROS 2 vision_msgs/ObjectHypothesisWithPose.
  *
+ * Shared by the 2-D and 3-D detection descriptors. The nested @c hypothesis of the ROS
+ * message (class ID and score) is flattened into this struct.
+ *
  * @param classId     Null-terminated class identifier string.
  * @param score       Confidence score in [0, 1].
  * @param pose        6-DOF pose with covariance of the hypothesised object.
@@ -56,38 +60,53 @@ static_assert( std::is_trivially_copyable<ObjectHypothesisRaw_t>::value,
                "ObjectHypothesisRaw_t must be trivially copyable for DMA buffer storage" );
 
 /**
- * @struct Detection3dRaw_t
- * @brief POD representation of a single 3-D detection stored in the DMA buffer,
- *        matching ROS 2 vision_msgs/Detection3D.
+ * @struct DetectionRaw
+ * @brief POD record of a single detection stored in the DMA buffer, matching ROS 2
+ *        vision_msgs/Detection2D and vision_msgs/Detection3D without their @c header.
+ *
+ * The 2-D and 3-D records differ only in the bounding box type, so they share this layout;
+ * see @c Detection2dRaw_t and @c Detection3dRaw_t. The @c header of the ROS message is carried
+ * once per buffer by @c ObjectDetectionDescriptor_t::timestampNs and @c frameId.
+ *
+ * @tparam BoundingBoxT  Bounding box type of the detection.
  *
  * @param id           Null-terminated tracking identifier. May be empty.
- * @param bbox         3-D bounding box surrounding the object.
+ * @param bbox         Bounding box surrounding the object.
  * @param resultCount  Number of valid entries in @c results.
  * @param results      Class hypotheses; only the first @c resultCount entries are valid.
  */
-typedef struct Detection3dRaw
+template <typename BoundingBoxT>
+struct DetectionRaw
 {
-    char                   id[QRB_DETECTION_MAX_ID_LEN];
-    BoundingBox3d_t        bbox;
-    uint32_t               resultCount;
-    ObjectHypothesisRaw_t  results[QRB_DETECTION_MAX_RESULTS];
-} Detection3dRaw_t;
-
-static_assert( std::is_trivially_copyable<Detection3dRaw_t>::value,
-               "Detection3dRaw_t must be trivially copyable for DMA buffer storage" );
+    char                  id[QRB_DETECTION_MAX_ID_LEN];
+    BoundingBoxT          bbox;
+    uint32_t              resultCount;
+    ObjectHypothesisRaw_t results[QRB_DETECTION_MAX_RESULTS];
+};
 
 /**
  * @struct ObjectDetectionDescriptor_t
- * @brief Descriptor for a robotics 3-D object detection buffer.
+ * @brief Common base of the robotics object detection buffer descriptors.
  *
- * Extends @c QC::Memory::BufferDescriptor_t to carry a list of 3-D detections
- * packed into a DMA buffer as a contiguous array of @c Detection3dRaw_t.
- * The layout mirrors ROS 2 @c vision_msgs/Detection3DArray.
+ * Extends @c QC::Memory::BufferDescriptor_t to carry a list of detections packed into a DMA
+ * buffer as a contiguous array of fixed-size POD records. This base holds everything the
+ * 2-D and 3-D descriptors share: the buffer type tag, the stamp, the frame, the detection
+ * count and the assignment logic. The record layout, and with it the accessors, belong to
+ * the concrete descriptors:
+ *   - @c ObjectDetection2dDescriptor_t  mirrors @c vision_msgs/Detection2DArray
+ *   - @c ObjectDetection3dDescriptor_t  mirrors @c vision_msgs/Detection3DArray
  *
- * Buffer layout:
+ * Buffer layout (@c Record is the @c Detection2dRaw_t or @c Detection3dRaw_t of the
+ * concrete descriptor):
  * @code
- *   pBuf → [ Detection3dRaw_t[0] | Detection3dRaw_t[1] | ... | Detection3dRaw_t[objCount-1] ]
+ *   pBuf → [ Record[0] | Record[1] | ... | Record[objCount-1] ]
  * @endcode
+ *
+ * The class is abstract: instantiate one of the concrete descriptors.
+ *
+ * @note All detection descriptors share the buffer type tag @c QC_BUFFER_TYPE_CUSTOM_2, so
+ * tell them apart by their C++ type (@c dynamic_cast to a concrete descriptor), never by
+ * @c type. A @c dynamic_cast to this base matches both dimensions.
  *
  * Inherited Members from QC::Memory::BufferDescriptor_t:
  * @param name          Human-readable buffer name.
@@ -110,7 +129,7 @@ static_assert( std::is_trivially_copyable<Detection3dRaw_t>::value,
  *                     (e.g. "camera_link", "lidar_link"),
  *                     matching ROS 2 std_msgs/Header.frame_id. A @c FrameId_t, a fixed-capacity
  *                     string of at most QRB_FRAME_ID_MAX_LEN characters.
- * @param objCount     Number of valid @c Detection3dRaw_t entries in the DMA buffer.
+ * @param objCount     Number of valid detection records in the DMA buffer.
  *
  * @note The descriptor has no dynamic length member (no std::string / std::vector), so copying it
  * never allocates, as required for buffer descriptors. The detections themselves are stored in the
@@ -119,15 +138,7 @@ static_assert( std::is_trivially_copyable<Detection3dRaw_t>::value,
 typedef struct ObjectDetectionDescriptor : public QC::Memory::BufferDescriptor_t
 {
 public:
-    ObjectDetectionDescriptor() : QC::Memory::BufferDescriptor_t(), timestampNs( 0 ), objCount( 0 )
-    {
-        type = QC::QC_BUFFER_TYPE_CUSTOM_2;
-    }
-
     ~ObjectDetectionDescriptor() override = default;
-
-    ObjectDetectionDescriptor( const ObjectDetectionDescriptor &other ) = default;
-    ObjectDetectionDescriptor( ObjectDetectionDescriptor &&other ) = default;
 
     // Inherit the other assignment overloads of the base class, as qcnode descriptors do.
     using QC::Memory::BufferDescriptor_t::operator=;
@@ -141,53 +152,12 @@ public:
     ObjectDetectionDescriptor &operator=( const QC::Memory::BufferDescriptor_t &other ) noexcept override;
 
     /**
-     * @brief Copy-assign from another @c ObjectDetectionDescriptor_t.
-     */
-    ObjectDetectionDescriptor &operator=( const ObjectDetectionDescriptor &other ) noexcept;
-
-    /**
-     * @brief Move-assign from another @c ObjectDetectionDescriptor_t.
-     */
-    ObjectDetectionDescriptor &operator=( ObjectDetectionDescriptor &&other ) noexcept;
-
-    /**
      * @brief Copy-assign from the root @c QCBufferDescriptorBase_t.
-     */
-    ObjectDetectionDescriptor &operator=( const QC::Memory::QCBufferDescriptorBase_t &other ) noexcept override;
-
-    // -------------------------------------------------------------------------
-    // Accessors
-    // -------------------------------------------------------------------------
-
-    /**
-     * @brief Returns a pointer to the @p index -th detection in the DMA buffer.
      *
-     * No bounds checking is performed; the caller must ensure
-     * @p index < @c objCount.
-     *
-     * @param index  Zero-based detection index.
-     * @return Pointer to the requested @c Detection3dRaw_t, or @c nullptr if
-     *         @c pBuf is @c nullptr.
+     * Pure virtual: what is copied depends on the concrete descriptor, which only accepts
+     * its own kind as a detection descriptor. See @c AssignFromBase.
      */
-    Detection3dRaw_t *GetDetectionPtr( uint32_t index ) const
-    {
-        if ( pBuf == nullptr )
-        {
-            return nullptr;
-        }
-        return reinterpret_cast<Detection3dRaw_t *>( GetDataPtr() ) + index;
-    }
-
-    /**
-     * @brief Returns the minimum DMA buffer size required to hold @p count detections.
-     *
-     * @param count  Number of detections to accommodate.
-     * @return Required buffer size in bytes.
-     */
-    static size_t CalcBufferSize( uint32_t count )
-    {
-        return static_cast<size_t>( count ) * sizeof( Detection3dRaw_t );
-    }
+    ObjectDetectionDescriptor &operator=( const QC::Memory::QCBufferDescriptorBase_t &other ) noexcept override = 0;
 
     // -------------------------------------------------------------------------
     // Data members
@@ -195,7 +165,61 @@ public:
 
     uint64_t  timestampNs; /**< Acquisition timestamp (ns, CLOCK_MONOTONIC). */
     FrameId_t frameId;     /**< Coordinate frame identifier. */
-    uint32_t  objCount;    /**< Number of valid detections in the DMA buffer. */
+    uint32_t  objCount;    /**< Number of valid detection records in the DMA buffer. */
+
+protected:
+    ObjectDetectionDescriptor() : QC::Memory::BufferDescriptor_t(), timestampNs( 0 ), objCount( 0 )
+    {
+        type = QC::QC_BUFFER_TYPE_CUSTOM_2;
+    }
+
+    ObjectDetectionDescriptor( const ObjectDetectionDescriptor &other ) = default;
+    ObjectDetectionDescriptor( ObjectDetectionDescriptor &&other ) = default;
+
+    /**
+     * @brief Copy-assign from another @c ObjectDetectionDescriptor_t.
+     *
+     * Protected so that the detection-specific fields cannot be copied between two different
+     * concrete descriptors, which would label 2-D records as 3-D. The concrete descriptors expose
+     * the copy assignment of their own type; assigning any other descriptor goes through
+     * @c operator=(const QCBufferDescriptorBase_t&) and copies the buffer fields only.
+     */
+    ObjectDetectionDescriptor &operator=( const ObjectDetectionDescriptor &other ) noexcept;
+
+    /**
+     * @brief Move-assign from another @c ObjectDetectionDescriptor_t. See the copy assignment.
+     */
+    ObjectDetectionDescriptor &operator=( ObjectDetectionDescriptor &&other ) noexcept;
+
+    /**
+     * @brief Shared body of the @c QCBufferDescriptorBase_t assignment of the concrete descriptors.
+     *
+     * @tparam DescriptorT  The concrete descriptor that is being assigned to.
+     *
+     * - @p other is a @c DescriptorT: copy everything.
+     * - @p other is any other @c BufferDescriptor_t, including the other detection dimension:
+     *   copy the buffer fields only, so a buffer of 2-D records is never labelled as 3-D.
+     * - otherwise: defer to the base-class assignment.
+     */
+    template <typename DescriptorT>
+    void AssignFromBase( const QC::Memory::QCBufferDescriptorBase_t &other ) noexcept
+    {
+        const DescriptorT *pDetDesc = dynamic_cast<const DescriptorT *>( &other );
+        const QC::Memory::BufferDescriptor_t *pBufDesc =
+                dynamic_cast<const QC::Memory::BufferDescriptor_t *>( &other );
+        if ( nullptr != pDetDesc )
+        {
+            ObjectDetectionDescriptor::operator=( static_cast<const ObjectDetectionDescriptor &>( *pDetDesc ) );
+        }
+        else if ( nullptr != pBufDesc )
+        {
+            ObjectDetectionDescriptor::operator=( *pBufDesc );
+        }
+        else
+        {
+            QC::Memory::BufferDescriptor_t::operator=( other );
+        }
+    }
 
 } ObjectDetectionDescriptor_t;
 
@@ -229,29 +253,6 @@ inline ObjectDetectionDescriptor &ObjectDetectionDescriptor::operator=( ObjectDe
         this->timestampNs = other.timestampNs;
         this->frameId = other.frameId;
         this->objCount = other.objCount;
-    }
-    return *this;
-}
-
-inline ObjectDetectionDescriptor &ObjectDetectionDescriptor::operator=( const QC::Memory::QCBufferDescriptorBase_t &other ) noexcept
-{
-    if ( this != &other )
-    {
-        const ObjectDetectionDescriptor_t *pDetDesc = dynamic_cast<const ObjectDetectionDescriptor_t *>( &other );
-        const QC::Memory::BufferDescriptor_t *pBufDesc =
-                dynamic_cast<const QC::Memory::BufferDescriptor_t *>( &other );
-        if ( nullptr != pDetDesc )
-        {
-            ObjectDetectionDescriptor::operator=( *pDetDesc );
-        }
-        else if ( nullptr != pBufDesc )
-        {
-            ObjectDetectionDescriptor::operator=( *pBufDesc );
-        }
-        else
-        {
-            QC::Memory::BufferDescriptor_t::operator=( other );
-        }
     }
     return *this;
 }
