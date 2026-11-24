@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package qrb.contract.vision.v1;
+
+import "qrb/contract/vision/v1/bounding_box_2d.proto";
+import "qrb/contract/vision/v1/object_hypothesis_with_pose.proto";
+
+// Mirrors vision_msgs/Detection2D without its header: the header of the enclosing
+// Detection2DArray applies to every detection.
+message Detection2D {
+    repeated ObjectHypothesisWithPose results = 1;
+    BoundingBox2D                     bbox    = 2;
+    string                            id      = 3;
+}

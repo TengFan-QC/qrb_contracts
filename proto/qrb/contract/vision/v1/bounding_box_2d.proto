@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package qrb.contract.vision.v1;
+
+import "qrb/contract/vision/v1/pose_2d.proto";
+
+// Mirrors vision_msgs/BoundingBox2D.
+message BoundingBox2D {
+    Pose2D center = 1;  // Position (pixels) and orientation of the box center.
+    double size_x = 2;  // Total size along the box X axis in pixels, relative to the center pose.
+    double size_y = 3;  // Total size along the box Y axis in pixels, relative to the center pose.
+}

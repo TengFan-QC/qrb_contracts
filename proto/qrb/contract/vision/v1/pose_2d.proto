@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package qrb.contract.vision.v1;
+
+import "qrb/contract/vision/v1/point_2d.proto";
+
+// Mirrors vision_msgs/Pose2D.
+message Pose2D {
+    Point2D position = 1;  // Position in pixels.
+    double  theta    = 2;  // Rotation in radians, positive counterclockwise.
+}

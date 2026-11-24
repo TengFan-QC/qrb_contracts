@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package qrb.contract.vision.v1;
+
+import "qrb/contract/common/v1/header.proto";
+import "qrb/contract/vision/v1/detection_2d.proto";
+
+// Mirrors vision_msgs/Detection2DArray.
+message Detection2DArray {
+    qrb.contract.common.v1.Header header     = 1;
+    repeated Detection2D          detections = 2;
+}

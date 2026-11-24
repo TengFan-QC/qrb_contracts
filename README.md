@@ -33,7 +33,9 @@ qrb_contracts/
 │       │   ├── ImuDescriptor.hpp              # ImuDescriptor
 │       │   └── PointCloudDescriptor.hpp       # PointCloudDescriptor
 │       └── Vision/
-│           └── ObjectDetectionDescriptor.hpp  # ObjectDetectionDescriptor
+│           ├── ObjectDetectionDescriptor.hpp    # ObjectDetectionDescriptor (common base)
+│           ├── ObjectDetection2dDescriptor.hpp  # ObjectDetection2dDescriptor
+│           └── ObjectDetection3dDescriptor.hpp  # ObjectDetection3dDescriptor
 ├── proto/
 │   └── qrb/contract/
 │       ├── geometry/v1/
@@ -82,14 +84,18 @@ QC::Memory::QCBufferDescriptorBase_t
     ├── QRB::Memory::OdometryDescriptor_t      (Navigation/OdometryDescriptor.hpp)
     ├── QRB::Memory::ImuDescriptor_t           (Sensor/ImuDescriptor.hpp)
     ├── QRB::Memory::PointCloudDescriptor_t    (Sensor/PointCloudDescriptor.hpp)
-    └── QRB::Memory::ObjectDetectionDescriptor_t  (Vision/ObjectDetectionDescriptor.hpp)
+    └── QRB::Memory::ObjectDetectionDescriptor_t      (Vision/ObjectDetectionDescriptor.hpp, abstract)
+        ├── QRB::Memory::ObjectDetection2dDescriptor_t  (Vision/ObjectDetection2dDescriptor.hpp)
+        └── QRB::Memory::ObjectDetection3dDescriptor_t  (Vision/ObjectDetection3dDescriptor.hpp)
 ```
 
 ### Common Types (`Common/Types.hpp`)
 
 Shared geometry value types used across descriptors, mirroring `geometry_msgs`:
 `Point3d_t`, `Vector3d_t`, `Quaternion_t`, `Pose_t`, `Transform_t`,
-`PoseWithCovariance_t`, `Twist_t`, `TwistWithCovariance_t`, `BoundingBox3d_t`
+`PoseWithCovariance_t`, `Twist_t`, `TwistWithCovariance_t`, `BoundingBox3d_t`,
+and, mirroring `vision_msgs`, the 2-D pixel types `Point2d_t`, `Pose2d_t`,
+`BoundingBox2d_t`.
 
 Types used by a single descriptor live in that descriptor's own header, as in
 qcnode's `ImageDescriptor.hpp`. For example `PointFieldType_e` and `PointField_t`
@@ -120,14 +126,20 @@ descriptor has no dynamic-length member and copying it never allocates, as
 qcnode requires of buffer descriptors.
 
 #### `ObjectDetectionDescriptor_t`
-Mirrors `vision_msgs/Detection3DArray`. Detection results are stored as a
-contiguous array of `Detection3dRaw_t` POD structs directly in the DMA buffer.
-`objCount` records the number of valid entries.
+Common, abstract base of the object detection descriptors. It holds what the 2-D
+and 3-D descriptors share: the buffer type tag, `timestampNs`, `frameId`,
+`objCount`, the assignment logic, and the shared record types
+(`ObjectHypothesisRaw_t`, and `DetectionRaw<BoundingBoxT>`, which both
+`Detection2dRaw_t` and `Detection3dRaw_t` are instances of). Instantiate one of
+the concrete descriptors below.
 
-Buffer layout:
-```
-pBuf → [ Detection3dRaw_t[0] | Detection3dRaw_t[1] | ... | Detection3dRaw_t[objCount-1] ]
-```
+All detection descriptors share the buffer type tag `QC_BUFFER_TYPE_CUSTOM_2`, so
+tell them apart by C++ type (`dynamic_cast` to the concrete descriptor), not by
+`type`. A `dynamic_cast` to `ObjectDetectionDescriptor_t` matches both.
+
+Assigning a descriptor of the other dimension, or a plain `BufferDescriptor_t`,
+copies the buffer fields only and leaves `timestampNs`, `frameId` and
+`objCount` untouched, so a buffer of 2-D records is never labelled as 3-D.
 
 The following limits are configurable via macros before including the header:
 
@@ -136,6 +148,26 @@ The following limits are configurable via macros before including the header:
 | `QRB_DETECTION_MAX_CLASS_ID_LEN` | `64` | Max class ID string length (bytes) |
 | `QRB_DETECTION_MAX_ID_LEN` | `64` | Max tracking ID string length (bytes) |
 | `QRB_DETECTION_MAX_RESULTS` | `8` | Max hypothesis results per detection |
+
+#### `ObjectDetection2dDescriptor_t`
+Mirrors `vision_msgs/Detection2DArray`. Detection results are stored as a
+contiguous array of `Detection2dRaw_t` POD structs directly in the DMA buffer.
+`objCount` records the number of valid entries. The bounding box is a
+`BoundingBox2d_t` in pixels.
+
+Buffer layout:
+```
+pBuf → [ Detection2dRaw_t[0] | Detection2dRaw_t[1] | ... | Detection2dRaw_t[objCount-1] ]
+```
+
+#### `ObjectDetection3dDescriptor_t`
+Mirrors `vision_msgs/Detection3DArray`. Same as the 2-D descriptor, with
+`Detection3dRaw_t` records whose bounding box is a `BoundingBox3d_t` in metres.
+
+Buffer layout:
+```
+pBuf → [ Detection3dRaw_t[0] | Detection3dRaw_t[1] | ... | Detection3dRaw_t[objCount-1] ]
+```
 
 ## Protobuf Schemas
 
@@ -175,7 +207,12 @@ code.
 | `sensor_msgs/PointCloud2` | `sensor/v1/point_cloud2.proto` |
 | `vision_msgs/ObjectHypothesis` | `vision/v1/object_hypothesis.proto` |
 | `vision_msgs/ObjectHypothesisWithPose` | `vision/v1/object_hypothesis_with_pose.proto` |
+| `vision_msgs/Point2D` | `vision/v1/point_2d.proto` |
+| `vision_msgs/Pose2D` | `vision/v1/pose_2d.proto` |
+| `vision_msgs/BoundingBox2D` | `vision/v1/bounding_box_2d.proto` |
 | `vision_msgs/BoundingBox3D` | `vision/v1/bounding_box_3d.proto` |
+| `vision_msgs/Detection2D` | `vision/v1/detection_2d.proto` |
+| `vision_msgs/Detection2DArray` | `vision/v1/detection_2d_array.proto` |
 | `vision_msgs/Detection3D` | `vision/v1/detection_3d.proto` |
 | `vision_msgs/Detection3DArray` | `vision/v1/detection_3d_array.proto` |
 
