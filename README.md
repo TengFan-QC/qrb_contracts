@@ -24,24 +24,24 @@ qrb_contracts/
 ├── include/
 │   └── QRB/Memory/
 │       ├── Common/
-│       │   └── Types.hpp                      # Shared geometry & sensor value types
+│       │   └── Types.hpp                         # Shared geometry & sensor value types
 │       ├── Geometry/
-│       │   ├── PoseDescriptor.hpp             # PoseDescriptor
-│       │   ├── PoseStampedDescriptor.hpp      # PoseStampedDescriptor
-│       │   ├── PoseArrayDescriptor.hpp        # PoseArrayDescriptor
-│       │   ├── TwistDescriptor.hpp            # TwistDescriptor
-│       │   ├── TFMessageDescriptor.hpp        # TFMessageDescriptor
-│       │   └── Vector3Descriptor.hpp          # Vector3Descriptor
+│       │   ├── PoseWithCovarianceDescriptor.hpp  # PoseWithCovarianceDescriptor
+│       │   ├── PoseDescriptor.hpp                # PoseDescriptor
+│       │   ├── PoseArrayDescriptor.hpp           # PoseArrayDescriptor
+│       │   ├── TwistDescriptor.hpp               # TwistDescriptor
+│       │   ├── TFMessageDescriptor.hpp           # TFMessageDescriptor
+│       │   └── Vector3Descriptor.hpp             # Vector3Descriptor
 │       ├── Navigation/
-│       │   └── OdometryDescriptor.hpp         # OdometryDescriptor
+│       │   └── OdometryDescriptor.hpp            # OdometryDescriptor
 │       ├── Sensor/
-│       │   ├── ImuDescriptor.hpp              # ImuDescriptor
-│       │   ├── JointStateBufferDescriptor.hpp # JointState_t & JointStateBufferDescriptor_t
-│       │   └── PointCloudDescriptor.hpp       # PointCloudDescriptor
+│       │   ├── ImuDescriptor.hpp                 # ImuDescriptor
+│       │   ├── JointStateBufferDescriptor.hpp    # JointState_t & JointStateBufferDescriptor_t
+│       │   └── PointCloudDescriptor.hpp          # PointCloudDescriptor
 │       └── Vision/
-│           ├── ObjectDetectionDescriptor.hpp    # ObjectDetectionDescriptor (common base)
-│           ├── ObjectDetection2dDescriptor.hpp  # ObjectDetection2dDescriptor
-│           └── ObjectDetection3dDescriptor.hpp  # ObjectDetection3dDescriptor
+│           ├── ObjectDetectionDescriptor.hpp     # ObjectDetectionDescriptor (common base)
+│           ├── ObjectDetection2dDescriptor.hpp   # ObjectDetection2dDescriptor
+│           └── ObjectDetection3dDescriptor.hpp   # ObjectDetection3dDescriptor
 ├── proto/
 │   └── qrb/contract/
 │       ├── geometry/v1/
@@ -90,17 +90,17 @@ and live in the `QRB::Memory` namespace.
 ```
 QC::Memory::QCBufferDescriptorBase_t
 └── QC::Memory::BufferDescriptor_t
-    ├── QRB::Memory::PoseDescriptor_t          (Geometry/PoseDescriptor.hpp)
-    ├── QRB::Memory::PoseStampedDescriptor_t   (Geometry/PoseStampedDescriptor.hpp)
-    ├── QRB::Memory::PoseArrayDescriptor_t     (Geometry/PoseArrayDescriptor.hpp)
-    ├── QRB::Memory::TwistDescriptor_t         (Geometry/TwistDescriptor.hpp)
-    ├── QRB::Memory::TFMessageDescriptor_t     (Geometry/TFMessageDescriptor.hpp)
-    ├── QRB::Memory::Vector3Descriptor_t       (Geometry/Vector3Descriptor.hpp)
-    ├── QRB::Memory::OdometryDescriptor_t      (Navigation/OdometryDescriptor.hpp)
-    ├── QRB::Memory::ImuDescriptor_t           (Sensor/ImuDescriptor.hpp)
-    ├── QRB::Memory::JointStateBufferDescriptor_t (Sensor/JointStateBufferDescriptor.hpp)
-    ├── QRB::Memory::PointCloudDescriptor_t    (Sensor/PointCloudDescriptor.hpp)
-    └── QRB::Memory::ObjectDetectionDescriptor_t      (Vision/ObjectDetectionDescriptor.hpp, abstract)
+    ├── QRB::Memory::PoseWithCovarianceDescriptor_t     (Geometry/PoseWithCovarianceDescriptor.hpp)
+    ├── QRB::Memory::PoseDescriptor_t                   (Geometry/PoseDescriptor.hpp)
+    ├── QRB::Memory::PoseArrayDescriptor_t              (Geometry/PoseArrayDescriptor.hpp)
+    ├── QRB::Memory::TwistDescriptor_t                  (Geometry/TwistDescriptor.hpp)
+    ├── QRB::Memory::TFMessageDescriptor_t              (Geometry/TFMessageDescriptor.hpp)
+    ├── QRB::Memory::Vector3Descriptor_t                (Geometry/Vector3Descriptor.hpp)
+    ├── QRB::Memory::OdometryDescriptor_t               (Navigation/OdometryDescriptor.hpp)
+    ├── QRB::Memory::ImuDescriptor_t                    (Sensor/ImuDescriptor.hpp)
+    ├── QRB::Memory::JointStateBufferDescriptor_t       (Sensor/JointStateBufferDescriptor.hpp)
+    ├── QRB::Memory::PointCloudDescriptor_t             (Sensor/PointCloudDescriptor.hpp)
+    └── QRB::Memory::ObjectDetectionDescriptor_t        (Vision/ObjectDetectionDescriptor.hpp, abstract)
         ├── QRB::Memory::ObjectDetection2dDescriptor_t  (Vision/ObjectDetection2dDescriptor.hpp)
         └── QRB::Memory::ObjectDetection3dDescriptor_t  (Vision/ObjectDetection3dDescriptor.hpp)
 ```
@@ -123,9 +123,9 @@ qcnode's `ImageDescriptor.hpp`. For example `PointFieldType_e` and `PointField_t
 
 | ROS 2 message | Descriptor | Buffer type | Data |
 |---|---|---|---|
-| `geometry_msgs/PoseStamped` | `PoseStampedDescriptor_t` | `CUSTOM_1` | members |
+| `geometry_msgs/PoseStamped` | `PoseDescriptor_t` | `CUSTOM_1` | members |
 | `geometry_msgs/PoseArray` | `PoseArrayDescriptor_t` | `CUSTOM_1` | `Pose_t` array in the buffer |
-| `geometry_msgs/PoseWithCovarianceStamped` | `PoseDescriptor_t` | `CUSTOM_1` | members |
+| `geometry_msgs/PoseWithCovarianceStamped` | `PoseWithCovarianceDescriptor_t` | `CUSTOM_1` | members |
 | `geometry_msgs/TwistStamped` | `TwistDescriptor_t` | `CUSTOM_4` | members |
 | `tf2_msgs/TFMessage` | `TFMessageDescriptor_t` | `CUSTOM_4` | `TransformStamped_t` array in the buffer |
 | `geometry_msgs/Vector3Stamped` | `Vector3Descriptor_t` | `CUSTOM_4` | members |
@@ -133,17 +133,21 @@ qcnode's `ImageDescriptor.hpp`. For example `PointFieldType_e` and `PointField_t
 Descriptors share a buffer type, so tell them apart by their C++ type (`dynamic_cast`), not by
 `type`.
 
+Every descriptor carries a stamp, so descriptor names leave out `Stamped`: `PoseDescriptor_t`
+mirrors `PoseStamped`, `PoseWithCovarianceDescriptor_t` mirrors `PoseWithCovarianceStamped`,
+`TwistDescriptor_t` mirrors `TwistStamped` and `Vector3Descriptor_t` mirrors `Vector3Stamped`.
+
 Some `geometry_msgs` have no descriptor of their own on purpose. The bare `Pose` has no stamp and
 no frame and is hardly ever a topic: it travels as a `PoseStamped`. A single `TransformStamped`
 travels as a `TFMessage` of one transform, which is how ROS 2 exchanges transforms. A descriptor
 that only holds a subset of another one's data, for a ROS 2 message that is not a topic of its
 own, would be a second way to say the same thing.
 
-#### `PoseDescriptor_t`
+#### `PoseWithCovarianceDescriptor_t`
 Mirrors `geometry_msgs/PoseWithCovarianceStamped`. Carries a single stamped
 6-DOF pose with a 6×6 covariance matrix.
 
-#### `PoseStampedDescriptor_t`
+#### `PoseDescriptor_t`
 Mirrors `geometry_msgs/PoseStamped`. Carries a single 6-DOF pose with the stamp
 (`timestampNs`) and the frame (`frameId`) it is expressed in, without covariance:
 the descriptor of a grasp, pre-grasp or place pose.
